@@ -1,0 +1,7 @@
+{
+  "impl_module": "b02_addition.packages.arithmetic",
+  "impl_attr": "add",
+  "version": "1.0.0",
+  "notes": "加法工具：執行 float 加總的教學範例。",
+  "run_shell_template": "python - <<'PY'\nimport sys\nfrom pathlib import Path\n\nproject_root = Path(r\"{project_root}\")\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\n\nfrom b02_addition.packages.arithmetic import add\nprint(add({x}, {y}))\nPY"
+}

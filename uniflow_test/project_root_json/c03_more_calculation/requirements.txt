@@ -1,0 +1,9 @@
+# Calculation Module Requirements
+# This file lists dependencies needed for the calculation pipeline
+
+# Core Python dependencies
+python>=3.7
+
+# Registry framework dependencies (inferred from TOOL_INDEX.json structure)
+# No additional dependencies needed as we're using standard library
+# and leveraging existing tools from the registry

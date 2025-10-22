@@ -1,0 +1,156 @@
+{
+  "tools_index_version": "1.1.0",
+  "generated_at": "2025-10-22T18:13:46+00:00",
+  "registry_meta": {
+    "original_index": "a01_registry/TOOL_INDEX.json",
+    "source_roots": [
+      "b02_addition",
+      "b03_multiply",
+      "b04_divide"
+    ],
+    "scan_script": "build_tool_index_json.py",
+    "notes": [
+      "工具清單與 a/b 模組結構對齊。",
+      "callables 內容包含函式簽章與簡要描述。",
+      "environment 直接內嵌對應環境設定的核心欄位。"
+    ]
+  },
+  "tools": [
+    {
+      "name": "addition",
+      "package_root": "b02_addition",
+      "module": "b02_addition.packages.arithmetic",
+      "version": "1.0.0",
+      "environment": {
+        "path": "b02_addition/env_command_path.json",
+        "notes": "加法工具：執行 float 加總的教學範例。",
+        "run_shell_template": "python - <<'PY'\nimport sys\nfrom pathlib import Path\n\nproject_root = Path(r\"{project_root}\")\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\n\nfrom b02_addition.packages.arithmetic import add\nprint(add({x}, {y}))\nPY",
+        "impl_module": "b02_addition.packages.arithmetic",
+        "impl_attr": "add"
+      },
+      "callables": [
+        {
+          "symbol": "add",
+          "entrypoint": "b02_addition.packages.arithmetic:add",
+          "source_path": "b02_addition/packages/arithmetic.py",
+          "language": "python",
+          "parameters": [
+            {
+              "name": "x",
+              "annotation": "float",
+              "description": "第一個加數，必須為有限浮點數。"
+            },
+            {
+              "name": "y",
+              "annotation": "float",
+              "description": "第二個加數，必須為有限浮點數。"
+            }
+          ],
+          "returns": "float",
+          "raises": [
+            "ValueError"
+          ],
+          "doc_overview": "計算兩個浮點數的加總並回傳結果。",
+          "doc_example": ">>> add(1.0, 2.5)\n3.5",
+          "tags": [
+            "arithmetic",
+            "demo",
+            "deterministic"
+          ],
+          "front_matter": {}
+        }
+      ]
+    },
+    {
+      "name": "multiply",
+      "package_root": "b03_multiply",
+      "module": "b03_multiply.packages.arithmetic",
+      "version": "1.0.0",
+      "environment": {
+        "path": "b03_multiply/env_command_path.json",
+        "run_command": "python3",
+        "notes": "乘法工具：配合 Universal Flow Registry Framework 的示範配置。",
+        "impl_module": "b03_multiply.packages.arithmetic",
+        "impl_attr": "mul"
+      },
+      "callables": [
+        {
+          "symbol": "mul",
+          "entrypoint": "b03_multiply.packages.arithmetic:mul",
+          "source_path": "b03_multiply/packages/arithmetic.py",
+          "language": "python",
+          "parameters": [
+            {
+              "name": "x",
+              "annotation": "float",
+              "description": "被乘數，必須為有限浮點數。"
+            },
+            {
+              "name": "y",
+              "annotation": "float",
+              "description": "乘數，必須為有限浮點數。"
+            }
+          ],
+          "returns": "float",
+          "raises": [
+            "ValueError"
+          ],
+          "doc_overview": "計算兩個浮點數的乘積並回傳結果。",
+          "doc_example": ">>> mul(3.0, 4.0)\n12.0",
+          "tags": [
+            "arithmetic",
+            "demo",
+            "deterministic"
+          ],
+          "front_matter": {}
+        }
+      ]
+    },
+    {
+      "name": "divide",
+      "package_root": "b04_divide",
+      "module": "b04_divide.packages.arithmetic",
+      "version": "1.0.1",
+      "environment": {
+        "path": "b04_divide/env_command_path.json",
+        "notes": "除法工具：包含除以零的防護邏輯。",
+        "run_command": "python3",
+        "impl_module": "b04_divide.packages.arithmetic",
+        "impl_attr": "div"
+      },
+      "callables": [
+        {
+          "symbol": "div",
+          "entrypoint": "b04_divide.packages.arithmetic:div",
+          "source_path": "b04_divide/packages/arithmetic.py",
+          "language": "python",
+          "parameters": [
+            {
+              "name": "x",
+              "annotation": "float",
+              "description": "被除數，必須為有限浮點數。"
+            },
+            {
+              "name": "y",
+              "annotation": "float",
+              "description": "除數，必須為有限浮點數且不可為零。"
+            }
+          ],
+          "returns": "float",
+          "raises": [
+            "ValueError",
+            "ZeroDivisionError"
+          ],
+          "doc_overview": "計算兩個浮點數的商並提供除以零的防護。",
+          "doc_example": ">>> div(10.0, 2.0)\n5.0",
+          "tags": [
+            "arithmetic",
+            "demo",
+            "deterministic"
+          ],
+          "front_matter": {}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# 乘法工具環境設定（YAML 風格，加入命令範例）
+impl_module: "b03_multiply.packages.arithmetic"
+impl_attr: "mul"
+run_command: "python3"
+version: "1.0.0"
+notes: "乘法工具：配合 Universal Flow Registry Framework 的示範配置。"

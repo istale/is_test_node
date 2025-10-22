@@ -1,0 +1,7 @@
+{
+  "impl_module": "b04_divide.packages.arithmetic",
+  "impl_attr": "div",
+  "version": "1.0.1",
+  "notes": "除法工具：包含除以零的防護邏輯。",
+  "run_command": "python3"
+}
