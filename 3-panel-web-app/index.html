@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3-Panel App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f6f3;
+      --surface: #ffffff;
+      --surface2: #f0efe9;
+      --border: #e4e2da;
+      --text: #1a1916;
+      --text-muted: #7a7870;
+      --accent: oklch(55% 0.18 250);
+      --accent-soft: oklch(96% 0.04 250);
+      --accent-border: oklch(80% 0.10 250);
+      --chip-active-bg: oklch(55% 0.18 250);
+      --chip-active-text: #fff;
+      --chip-bg: #efefeb;
+      --chip-text: #3a3935;
+      --chip-hover: #e3e2dc;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04);
+      --font: 'DM Sans', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
+    html, body, #root {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-noncommentable=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('mouseup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+function TweakColor({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <input type="color" className="twk-swatch" value={value}
+             onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+</script>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // ── Demo Data ──────────────────────────────────────────────────────────────
+    const FOLDERS = [
+      { id: 1, label: "Folder 1", color: "oklch(55% 0.18 250)" },
+      { id: 2, label: "Folder 2", color: "oklch(55% 0.16 160)" },
+      { id: 3, label: "Folder 3", color: "oklch(55% 0.18 30)"  },
+    ];
+
+    const FILES = [
+      { id: 1, folder: 1, name: "Project Brief.pdf",     size: "240 KB", date: "Apr 28", type: "pdf"  },
+      { id: 2, folder: 1, name: "Design Mockups.fig",    size: "4.2 MB", date: "Apr 27", type: "fig"  },
+      { id: 3, folder: 1, name: "Meeting Notes.md",      size: "18 KB",  date: "Apr 25", type: "md"   },
+      { id: 4, folder: 2, name: "Q1 Report.xlsx",        size: "560 KB", date: "Apr 22", type: "xlsx" },
+      { id: 5, folder: 2, name: "Budget.csv",            size: "120 KB", date: "Apr 20", type: "csv"  },
+      { id: 6, folder: 2, name: "Roadmap.pptx",          size: "3.1 MB", date: "Apr 18", type: "pptx" },
+      { id: 7, folder: 3, name: "Codebase.zip",          size: "12 MB",  date: "Apr 15", type: "zip"  },
+      { id: 8, folder: 3, name: "README.md",             size: "6 KB",   date: "Apr 14", type: "md"   },
+      { id: 9, folder: 3, name: "config.yaml",           size: "2 KB",   date: "Apr 12", type: "yaml" },
+    ];
+
+    const EXT_COLORS = {
+      pdf: "oklch(55% 0.18 25)", fig: "oklch(55% 0.17 290)",
+      md: "oklch(50% 0.10 200)", xlsx: "oklch(52% 0.18 145)",
+      csv: "oklch(52% 0.18 155)", pptx: "oklch(54% 0.20 22)",
+      zip: "oklch(50% 0.12 60)", yaml: "oklch(52% 0.14 220)",
+    };
+
+    // ── Icon helpers ───────────────────────────────────────────────────────────
+    function FileIcon({ type }) {
+      const color = EXT_COLORS[type] || "var(--text-muted)";
+      return (
+        <div style={{
+          width: 36, height: 44, borderRadius: 5,
+          background: `color-mix(in oklch, ${color} 12%, white)`,
+          border: `1.5px solid color-mix(in oklch, ${color} 30%, transparent)`,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "flex-end",
+          paddingBottom: 6, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 8, fontFamily: "var(--mono)", color, fontWeight: 600, letterSpacing: 0 }}>
+            {type.toUpperCase()}
+          </span>
+        </div>
+      );
+    }
+
+    // ── Left Panel ─────────────────────────────────────────────────────────────
+    function LeftPanel({ active, onToggle, onReset, selectedFile, onSelectFile }) {
+      const [resetHov, setResetHov] = useState(false);
+      const [spin, setSpin] = useState(false);
+
+      function handleReset() {
+        setSpin(true);
+        onReset();
+        setTimeout(() => setSpin(false), 500);
+      }
+
+      const filtered = active.length === 0 ? FILES : FILES.filter(f => active.includes(f.folder));
+      const grouped = FOLDERS.reduce((acc, fld) => {
+        if (active.length === 0 || active.includes(fld.id)) {
+          const items = filtered.filter(f => f.folder === fld.id);
+          if (items.length) acc.push({ folder: fld, items });
+        }
+        return acc;
+      }, []);
+
+      return (
+        <aside style={{
+          width: 300, flexShrink: 0,
+          background: "var(--bg)",
+          borderRight: "1px solid var(--border)",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}>
+          {/* Chip bar */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "10px 12px",
+            background: "var(--surface)",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0, flexWrap: "nowrap",
+          }}>
+            {FOLDERS.map(f => {
+              const isActive = active.includes(f.id);
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => onToggle(f.id)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: `1.5px solid ${isActive ? f.color : "var(--border)"}`,
+                    background: isActive ? `color-mix(in srgb, ${f.color} 10%, var(--surface))` : "var(--surface)",
+                    color: isActive ? f.color : "var(--text)",
+                    fontFamily: "var(--font)", fontSize: 12, fontWeight: 500,
+                    cursor: "pointer", whiteSpace: "nowrap",
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--chip-hover)"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface)"; }}
+                >
+                  <span style={{
+                    width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                    background: f.color, opacity: isActive ? 1 : 0.5,
+                  }} />
+                  {f.label}
+                </button>
+              );
+            })}
+
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* Refresh icon */}
+            <button
+              onClick={handleReset}
+              onMouseEnter={() => setResetHov(true)}
+              onMouseLeave={() => setResetHov(false)}
+              title="Reset filters"
+              style={{
+                width: 28, height: 28, borderRadius: 7,
+                border: "1.5px solid var(--border)",
+                background: resetHov ? "var(--chip-hover)" : "var(--surface)",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                color: "var(--text-muted)", transition: "all 0.15s", flexShrink: 0,
+              }}
+            >
+              <span style={{
+                fontSize: 16, lineHeight: 1,
+                display: "inline-block",
+                transition: "transform 0.5s ease",
+                transform: spin ? "rotate(-360deg)" : "rotate(0deg)",
+              }}>&#8634;</span>
+            </button>
+          </div>
+
+          {/* File list header */}
+          <div style={{
+            padding: "14px 20px 10px",
+            display: "flex", alignItems: "baseline", gap: 8, flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>
+              {active.length === 0 ? "All Files" : FOLDERS.filter(f => active.includes(f.id)).map(f => f.label).join(", ")}
+            </span>
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              {filtered.length} items
+            </span>
+          </div>
+
+          {/* File list */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 12px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+            {grouped.map(({ folder, items }) => (
+              <section key={folder.id}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: "0.07em",
+                  textTransform: "uppercase", color: folder.color,
+                  marginBottom: 6, paddingLeft: 4, paddingTop: 4,
+                }}>
+                  {folder.label}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {items.map(file => (
+                    <FileRow
+                      key={file.id}
+                      file={file}
+                      folderColor={folder.color}
+                      selected={selectedFile?.id === file.id}
+                      onSelect={onSelectFile}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                color: "var(--text-muted)", fontSize: 14, gap: 8, paddingTop: 60,
+              }}>
+                <div style={{ fontSize: 32, opacity: 0.3 }}>📂</div>
+                <div>No files found</div>
+              </div>
+            )}
+          </div>
+        </aside>
+      );
+    }
+
+    // ── Middle Panel ───────────────────────────────────────────────────────────
+    function MiddlePanel({ selectedFile }) {
+      return (
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <ContentViewer file={selectedFile} />
+        </div>
+      );
+    }
+
+    function FileRow({ file, folderColor, selected, onSelect }) {
+      const [hov, setHov] = useState(false);
+      return (
+        <div
+          onClick={() => onSelect(file)}
+          onMouseEnter={() => setHov(true)}
+          onMouseLeave={() => setHov(false)}
+          style={{
+            display: "flex", alignItems: "center", gap: 14,
+            padding: "10px 14px", borderRadius: 8, cursor: "pointer",
+            background: selected
+              ? `color-mix(in srgb, ${folderColor} 10%, var(--surface))`
+              : hov ? "var(--surface)" : "transparent",
+            border: `1px solid ${selected ? folderColor : hov ? "var(--border)" : "transparent"}`,
+            transition: "all 0.12s ease",
+            boxShadow: (hov || selected) ? "var(--shadow)" : "none",
+          }}
+        >
+          <FileIcon type={file.type} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: selected ? 600 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: selected ? folderColor : "var(--text)" }}>
+              {file.name}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "var(--mono)" }}>
+              {file.size}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--mono)", flexShrink: 0 }}>
+            {file.date}
+          </div>
+        </div>
+      );
+    }
+
+    // ── File Content Viewer ────────────────────────────────────────────────────
+    const FILE_CONTENT = {
+      "Project Brief.pdf":   "# Project Brief\n\nThis document outlines the scope, goals, and deliverables for the upcoming product redesign.\n\n## Objectives\n- Improve user onboarding flow\n- Reduce time-to-value by 40%\n- Modernize visual design language\n\n## Timeline\nQ2 2026 — Research & Discovery\nQ3 2026 — Design & Prototyping\nQ4 2026 — Development & Launch",
+      "Design Mockups.fig":  "Figma design file containing high-fidelity mockups for all major screens.\n\nPages:\n• Overview\n• Onboarding Flow (12 screens)\n• Dashboard\n• Settings\n• Component Library",
+      "Meeting Notes.md":    "# Meeting Notes — Apr 25\n\nAttendees: Alice, Bob, Carol, Dave\n\n## Action Items\n- [ ] Alice: finalize user research report\n- [ ] Bob: set up staging environment\n- [ ] Carol: review legal compliance\n- [x] Dave: send calendar invites\n\n## Next meeting: May 8",
+      "Q1 Report.xlsx":      "Q1 Financial Summary\n\nRevenue:     $1,240,000\nExpenses:    $820,000\nNet Profit:  $420,000\nMargin:      33.9%\n\nTop performing segments:\n1. Enterprise — +22% YoY\n2. SMB — +14% YoY\n3. Consumer — -3% YoY",
+      "Budget.csv":          "category,q1,q2,q3,q4\nMarketing,42000,48000,51000,55000\nEngineering,180000,180000,195000,195000\nDesign,60000,60000,65000,65000\nOperations,35000,35000,38000,40000\nTotal,317000,323000,349000,355000",
+      "Roadmap.pptx":        "Product Roadmap 2026\n\nQ1 ✓ — Infrastructure overhaul, performance improvements\nQ2 ✓ — New onboarding, mobile app v2\nQ3 → — AI assistant integration, API v3\nQ4 — Enterprise dashboard, SSO, audit logs\n\nNorth Star Metric: Weekly Active Users",
+      "Codebase.zip":        "Archive contents:\n\nsrc/\n  components/\n  hooks/\n  utils/\ntest/\n  unit/\n  integration/\npublic/\npackage.json\ntsconfig.json\nREADME.md\n\nSize: 12 MB (247 files)",
+      "README.md":           "# Project Name\n\nA modern full-stack application built with React + Node.js.\n\n## Getting Started\n```bash\nnpm install\nnpm run dev\n```\n\n## Tech Stack\n- Frontend: React 18, TypeScript\n- Backend: Node.js, Express\n- Database: PostgreSQL\n- Infra: Docker, AWS ECS",
+      "config.yaml":         "app:\n  name: my-app\n  version: 2.4.1\n  env: production\n\nserver:\n  port: 3000\n  host: 0.0.0.0\n  timeout: 30s\n\ndatabase:\n  host: db.internal\n  port: 5432\n  name: myapp_prod\n  pool_size: 20\n\nlogging:\n  level: info\n  format: json",
+    };
+
+    function ContentViewer({ file }) {
+      if (!file) {
+        return (
+          <div style={{
+            flex: 1, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            color: "var(--text-muted)", gap: 12,
+            background: "var(--bg)",
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 14,
+              background: "var(--surface2)",
+              border: "1.5px solid var(--border)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>Select a file to preview</div>
+            <div style={{ fontSize: 13, opacity: 0.6 }}>Click any file in the list</div>
+          </div>
+        );
+      }
+
+      const folder = FOLDERS.find(f => f.id === file.folder);
+      const content = FILE_CONTENT[file.name] || "No preview available.";
+
+      return (
+        <div style={{
+          flex: 1, minWidth: 0,
+          display: "flex", flexDirection: "column",
+          background: "var(--bg)",
+          overflow: "hidden",
+        }}>
+          {/* Content header */}
+          <div style={{
+            padding: "16px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--surface)",
+            display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
+          }}>
+            <FileIcon type={file.type} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {file.name}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                <span style={{ fontFamily: "var(--mono)" }}>{file.size}</span>
+                <span>·</span>
+                <span style={{ color: folder?.color }}>{folder?.label}</span>
+                <span>·</span>
+                <span>{file.date}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Content body */}
+          <div style={{
+            flex: 1, overflowY: "auto", padding: "24px",
+          }}>
+            <pre style={{
+              fontFamily: "var(--mono)", fontSize: 13, lineHeight: 1.7,
+              color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10, padding: "20px 24px",
+            }}>
+              {content}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Right Panel — Chat ─────────────────────────────────────────────────────
+    const INIT_MESSAGES = [
+      { id: 1, role: "assistant", text: "Hi! Ask me anything about your files or folders." },
+    ];
+
+    function RightPanel({ accentColor }) {
+      const [messages, setMessages] = useState(INIT_MESSAGES);
+      const [input, setInput] = useState("");
+      const [loading, setLoading] = useState(false);
+      const bottomRef = useRef(null);
+      const textareaRef = useRef(null);
+
+      useEffect(() => {
+        if (bottomRef.current) {
+          bottomRef.current.parentElement.scrollTop = bottomRef.current.offsetTop;
+        }
+      }, [messages]);
+
+      async function send() {
+        const text = input.trim();
+        if (!text || loading) return;
+        setInput("");
+        const userMsg = { id: Date.now(), role: "user", text };
+        setMessages(prev => [...prev, userMsg]);
+        setLoading(true);
+
+        try {
+          const reply = await window.claude.complete({
+            messages: [
+              { role: "user", content: `You are a helpful assistant for a file management app. The user has folders: Folder 1 (Project Brief.pdf, Design Mockups.fig, Meeting Notes.md), Folder 2 (Q1 Report.xlsx, Budget.csv, Roadmap.pptx), Folder 3 (Codebase.zip, README.md, config.yaml). Reply concisely.\n\nUser: ${text}` }
+            ]
+          });
+          setMessages(prev => [...prev, { id: Date.now() + 1, role: "assistant", text: reply }]);
+        } catch(e) {
+          setMessages(prev => [...prev, { id: Date.now() + 1, role: "assistant", text: "Sorry, something went wrong." }]);
+        }
+        setLoading(false);
+      }
+
+      function handleKey(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      }
+
+      const accent = accentColor || "var(--accent)";
+
+      return (
+        <aside style={{
+          width: 320, flexShrink: 0,
+          background: "var(--surface)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}>
+          {/* Chat header */}
+          <div style={{
+            padding: "20px 20px 16px",
+            borderBottom: "1px solid var(--border)",
+            fontSize: 15, fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: accent, display: "inline-block",
+            }} />
+            Assistant
+          </div>
+
+          {/* Messages */}
+          <div style={{
+            flex: 1, overflowY: "auto",
+            padding: "16px 16px 8px",
+            display: "flex", flexDirection: "column", gap: 12,
+          }}>
+            {messages.map(msg => (
+              <ChatBubble key={msg.id} msg={msg} accent={accent} />
+            ))}
+            {loading && (
+              <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "6px 12px" }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: "var(--border)",
+                    animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
+                ))}
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{
+            padding: "12px 16px 16px",
+            borderTop: "1px solid var(--border)",
+            display: "flex", flexDirection: "column", gap: 8,
+          }}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              rows={3}
+              placeholder="Ask about your files…"
+              style={{
+                width: "100%", resize: "none",
+                border: "1.5px solid var(--border)",
+                borderRadius: 8, padding: "10px 12px",
+                fontFamily: "var(--font)", fontSize: 14,
+                color: "var(--text)", background: "var(--bg)",
+                outline: "none", lineHeight: 1.5,
+                transition: "border-color 0.15s",
+              }}
+              onFocus={e => e.target.style.borderColor = accent}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+            <button
+              onClick={send}
+              disabled={!input.trim() || loading}
+              style={{
+                padding: "10px 0", borderRadius: 8, border: "none",
+                background: input.trim() && !loading ? accent : "var(--border)",
+                color: input.trim() && !loading ? "#fff" : "var(--text-muted)",
+                fontFamily: "var(--font)", fontSize: 14, fontWeight: 600,
+                cursor: input.trim() && !loading ? "pointer" : "default",
+                transition: "all 0.15s",
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </aside>
+      );
+    }
+
+    function ChatBubble({ msg, accent }) {
+      const isUser = msg.role === "user";
+      return (
+        <div style={{
+          display: "flex",
+          justifyContent: isUser ? "flex-end" : "flex-start",
+        }}>
+          <div style={{
+            maxWidth: "82%",
+            padding: "9px 13px",
+            borderRadius: isUser ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+            background: isUser ? accent : "var(--surface2)",
+            color: isUser ? "#fff" : "var(--text)",
+            fontSize: 14, lineHeight: 1.55,
+            border: isUser ? "none" : "1px solid var(--border)",
+            whiteSpace: "pre-wrap",
+          }}>
+            {msg.text}
+          </div>
+        </div>
+      );
+    }
+
+    // ── App Root ───────────────────────────────────────────────────────────────
+    function App() {
+      const [activeFilters, setActiveFilters] = useState([]);
+      const [selectedFile, setSelectedFile] = useState(null);
+
+      const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+        "accentColor": "#4f7ef7",
+        "darkMode": false
+      }/*EDITMODE-END*/;
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      useEffect(() => {
+        const root = document.documentElement;
+        if (tweaks.darkMode) {
+          root.style.setProperty("--bg", "#141412");
+          root.style.setProperty("--surface", "#1d1c19");
+          root.style.setProperty("--surface2", "#262520");
+          root.style.setProperty("--border", "#2e2d29");
+          root.style.setProperty("--text", "#e8e6df");
+          root.style.setProperty("--text-muted", "#7a7870");
+          root.style.setProperty("--chip-hover", "#2a2925");
+        } else {
+          root.style.setProperty("--bg", "#f7f6f3");
+          root.style.setProperty("--surface", "#ffffff");
+          root.style.setProperty("--surface2", "#f0efe9");
+          root.style.setProperty("--border", "#e4e2da");
+          root.style.setProperty("--text", "#1a1916");
+          root.style.setProperty("--text-muted", "#7a7870");
+          root.style.setProperty("--chip-hover", "#e3e2dc");
+        }
+        if (tweaks.accentColor) root.style.setProperty("--accent", tweaks.accentColor);
+      }, [tweaks.darkMode, tweaks.accentColor]);
+
+      function toggleFilter(id) {
+        setActiveFilters(prev => {
+          const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+          // Clear selection if selected file's folder is being hidden
+          if (selectedFile) {
+            const visible = next.length === 0 || next.includes(selectedFile.folder);
+            if (!visible) setSelectedFile(null);
+          }
+          return next;
+        });
+      }
+
+      return (
+        <div style={{
+          display: "flex", height: "100vh", width: "100vw", overflow: "hidden",
+        }}>
+          <LeftPanel active={activeFilters} onToggle={toggleFilter} onReset={() => { setActiveFilters([]); setSelectedFile(null); }} selectedFile={selectedFile} onSelectFile={setSelectedFile} />
+          <MiddlePanel selectedFile={selectedFile} />
+          <RightPanel accentColor={tweaks.accentColor} />
+
+          <TweaksPanel>
+            <TweakSection label="Theme">
+              <TweakColor label="Accent color" value={tweaks.accentColor} onChange={v => setTweak("accentColor", v)} />
+              <TweakToggle label="Dark mode" value={tweaks.darkMode} onChange={v => setTweak("darkMode", v)} />
+            </TweakSection>
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    // bounce animation
+    const styleEl = document.createElement("style");
+    styleEl.textContent = `
+      @keyframes bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+        40% { transform: translateY(-6px); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
